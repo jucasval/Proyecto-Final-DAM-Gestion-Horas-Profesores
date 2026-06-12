@@ -1,0 +1,16 @@
+# Credenciales — NUNCA subir la configuración real
+api/config/database.php
+
+# Sistema operativo
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editores
+.vscode/
+.idea/
+*.swp
+
+# Logs y temporales
+*.log
+*.tmp

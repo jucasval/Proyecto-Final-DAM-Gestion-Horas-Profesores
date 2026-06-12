@@ -1,0 +1,178 @@
+// js/cargos.js
+
+let todosCargos       = [];
+let todasAsigCargos   = [];
+let todosProfesores   = [];
+
+async function cargarDatos() {
+  try {
+    [todosCargos, todasAsigCargos, todosProfesores] = await Promise.all([
+      api.get('cargos'),
+      api.get('cargos/asignaciones'),
+      api.get('profesores'),
+    ]);
+    renderCargos();
+    renderAsignaciones();
+    poblarSelectores();
+  } catch (err) { console.error(err); }
+}
+
+function renderCargos() {
+  const tbody = document.getElementById('tbody-cargos');
+  if (!todosCargos.length) { tbody.innerHTML = '<tr><td colspan="3" class="table-loading">Sin cargos registrados</td></tr>'; return; }
+  tbody.innerHTML = todosCargos.map(c => `
+    <tr>
+      <td><strong>${esc(c.nombre)}</strong></td>
+      <td><span style="font-family:var(--font-mono);font-weight:600">${c.horas}h</span></td>
+      <td>
+        <button class="btn btn-secondary btn-sm" onclick="abrirModalCargo(${c.id})">Editar</button>
+        <button class="btn btn-danger btn-sm"    onclick="eliminarCargo(${c.id})">Eliminar</button>
+      </td>
+    </tr>`).join('');
+}
+
+function renderAsignaciones() {
+  const tbody = document.getElementById('tbody-asignaciones-cargo');
+  if (!todasAsigCargos.length) { tbody.innerHTML = '<tr><td colspan="5" class="table-loading">Sin asignaciones</td></tr>'; return; }
+  tbody.innerHTML = todasAsigCargos.map(a => `
+    <tr>
+      <td><strong>${esc(a.profesor)}</strong></td>
+      <td class="hide-tablet">${badgePuesto(a.puesto)}</td>
+      <td>${esc(a.cargo)}</td>
+      <td><span style="font-family:var(--font-mono);font-weight:600">${a.horas}h</span>
+        ${a.horas != a.horas_defecto ? `<span style="font-size:11px;color:var(--text-muted);margin-left:4px">(def: ${a.horas_defecto}h)</span>` : ''}
+      </td>
+      <td>
+        <button class="btn btn-secondary btn-sm" onclick="abrirModalAsignacion(${a.id})">Editar</button>
+        <button class="btn btn-danger btn-sm"    onclick="eliminarAsignacionCargo(${a.id})">Eliminar</button>
+      </td>
+    </tr>`).join('');
+}
+
+function poblarSelectores() {
+  const selProf = document.getElementById('asig-cargo-profesor');
+  selProf.innerHTML = '<option value="">— Selecciona un profesor —</option>' +
+    todosProfesores.sort((a, b) => a.apellidos.localeCompare(b.apellidos))
+      .map(p => `<option value="${p.id}">${esc(p.apellidos)}, ${esc(p.nombre)} (${esc(p.puesto)})</option>`).join('');
+  const selCargo = document.getElementById('asig-cargo-cargo');
+  selCargo.innerHTML = '<option value="">— Selecciona un cargo —</option>' +
+    todosCargos.map(c => `<option value="${c.id}" data-horas="${c.horas}">${esc(c.nombre)} (${c.horas}h)</option>`).join('');
+}
+
+function autocompletarHoras() {
+  const sel   = document.getElementById('asig-cargo-cargo');
+  const opt   = sel.options[sel.selectedIndex];
+  if (opt?.dataset?.horas !== undefined) document.getElementById('asig-cargo-horas').value = opt.dataset.horas;
+}
+
+function abrirModalCargo(id = null) {
+  document.getElementById('cargo-id').value    = '';
+  document.getElementById('cargo-nombre').value = '';
+  document.getElementById('cargo-horas').value  = 0;
+  if (id) {
+    const c = todosCargos.find(x => x.id == id);
+    if (!c) return;
+    document.getElementById('titulo-cargo').textContent = 'Editar cargo';
+    document.getElementById('cargo-id').value    = c.id;
+    document.getElementById('cargo-nombre').value = c.nombre;
+    document.getElementById('cargo-horas').value  = c.horas;
+  } else {
+    document.getElementById('titulo-cargo').textContent = 'Nuevo cargo';
+  }
+  limpiarErroresModal();
+  openModal('modal-cargo');
+}
+
+async function guardarCargo() {
+  limpiarErroresModal();
+  
+  const id   = document.getElementById('cargo-id').value;
+  const data = { nombre: document.getElementById('cargo-nombre').value.trim(), horas: parseFloat(document.getElementById('cargo-horas').value) || 0 };
+  if (!data.nombre) { 
+    mostrarErrorModal('El nombre es obligatorio.');
+    return; 
+  }
+  try {
+    if (id) { await api.put('cargos', id, data); showAlert('Cargo actualizado.'); }
+    else     { await api.post('cargos', data);   showAlert('Cargo creado.'); }
+    closeModal('modal-cargo');
+    todosCargos = await api.get('cargos');
+    renderCargos();
+    poblarSelectores();
+  } catch (err) { 
+    const msg = err && err.error ? err.error : 'Error al guardar.';
+    mostrarErrorModal(msg);
+  }
+}
+
+async function eliminarCargo(id) {
+  if (!confirmar('¿Eliminar este cargo?')) return;
+  try {
+    await api.delete('cargos', id);
+    showAlert('Cargo eliminado.');
+    todosCargos = await api.get('cargos');
+    renderCargos();
+  } catch (err) { showAlert(err.error || 'Error al eliminar.', 'error'); }
+}
+
+function abrirModalAsignacion(id = null) {
+  document.getElementById('asig-cargo-id').value       = '';
+  document.getElementById('asig-cargo-profesor').value = '';
+  document.getElementById('asig-cargo-cargo').value    = '';
+  document.getElementById('asig-cargo-horas').value    = 0;
+  if (id) {
+    const a = todasAsigCargos.find(x => x.id == id);
+    if (!a) return;
+    document.getElementById('titulo-asignacion').textContent  = 'Editar asignación';
+    document.getElementById('asig-cargo-id').value       = a.id;
+    document.getElementById('asig-cargo-profesor').value = a.profesor_id;
+    document.getElementById('asig-cargo-cargo').value    = a.cargo_id;
+    document.getElementById('asig-cargo-horas').value    = a.horas;
+  } else {
+    document.getElementById('titulo-asignacion').textContent = 'Asignar cargo';
+  }
+  openModal('modal-asignacion');
+}
+
+async function guardarAsignacionCargo() {
+  const id   = document.getElementById('asig-cargo-id').value;
+  // Las horas no se envían: el servidor las toma siempre del cargo
+  const data = {
+    profesor_id: document.getElementById('asig-cargo-profesor').value,
+    cargo_id:    document.getElementById('asig-cargo-cargo').value,
+  };
+  if (!data.profesor_id || !data.cargo_id) { showAlert('Profesor y cargo son obligatorios.', 'error'); return; }
+  try {
+    const url    = id ? `${API_BASE}/cargos/asignaciones/${id}` : `${API_BASE}/cargos/asignaciones`;
+    const method = id ? 'PUT' : 'POST';
+    const res = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
+    const out = await res.json().catch(() => ({}));
+    if (!res.ok) { showAlert(out.error || 'Error al guardar.', 'error'); return; }
+    showAlert(id ? 'Asignación actualizada.' : 'Cargo asignado.');
+    closeModal('modal-asignacion');
+    todasAsigCargos = await api.get('cargos/asignaciones');
+    renderAsignaciones();
+  } catch (err) { showAlert('Error al guardar.', 'error'); }
+}
+
+async function eliminarAsignacionCargo(id) {
+  if (!confirmar('¿Eliminar esta asignación de cargo?')) return;
+  try {
+    await fetch(`${API_BASE}/cargos/asignaciones/${id}`, { method: 'DELETE' });
+    showAlert('Asignación eliminada.');
+    todasAsigCargos = await api.get('cargos/asignaciones');
+    renderAsignaciones();
+  } catch (err) { showAlert('Error al eliminar.', 'error'); }
+}
+
+cargarDatos();
+
+// ✅ SINCRONIZACIÓN CORREGIDA: llama a renderCargos() en lugar de renderTabla()
+initSync('cargos', async (datosNuevos) => {
+  console.log('🎖️ Cargos actualizados desde otro dispositivo');
+  todosCargos = datosNuevos;
+  renderCargos();
+  poblarSelectores();
+}, 15000);
+
+window.addEventListener('beforeunload', () => stopSync('cargos'));
