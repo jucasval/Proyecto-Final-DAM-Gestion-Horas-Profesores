@@ -75,7 +75,7 @@ proyecto/
 │       └── usuarios.php
 ├── auth.php                       ← Validación de sesión en cada página
 ├── login.php / logout.php
-├── schema_infinityfree.sql        ← Esquema completo (9 tablas) con datos de prueba
+├── schema_github.sql        ← Esquema completo (9 tablas) con datos de prueba
 ├── schema.png                     ← Diagrama E-R
 └── README.md
 ```
@@ -93,7 +93,7 @@ proyecto/
 
 1. **Importar la base de datos**
    ```bash
-   mysql -u root -p < schema_infinityfree.sql
+   mysql -u root -p < schema_github.sql
    ```
 
 2. **Configurar la conexión** en `api/config/database.php`
@@ -110,7 +110,7 @@ proyecto/
 ### Despliegue en InfinityFree (u otro hosting compartido)
 
 1. Subir todos los ficheros por FTP/SFTP manteniendo la estructura.
-2. Importar `schema_infinityfree.sql` desde phpMyAdmin.
+2. Importar `schema_github.sql` desde phpMyAdmin.
 3. Ajustar las credenciales en `api/config/database.php` con los datos del hosting.
 
 ---
